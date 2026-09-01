@@ -1,0 +1,158 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jot — Let your ideas wander</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html { scroll-behavior: smooth; }
+    body { min-height: 100vh; overflow-x: hidden; overflow-y: scroll; }
+    .topbar { position: sticky; top: 0; }
+    main { height: auto; min-height: calc(100vh - 70px); }
+    .board { height: calc(100vh - 70px); min-height: calc(100vh - 70px); overflow: visible; padding-bottom: 120px; }
+    .toolbox { position: fixed; top: calc(50% + 35px); }
+    .prompt-dock { position: fixed; }
+    .toast { position: fixed; top: 92px; }
+    .spark-menu { position: fixed; top: 40%; }
+    .note.group-selected { outline: 4px solid #f35f45; outline-offset: 5px; transform: rotate(var(--r)) scale(1.03); }
+    .note.group-selected::after { content: '✓'; position: absolute; right: -10px; top: -12px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #f35f45; color: white; font-weight: 800; }
+    .idea-group { position: absolute; z-index: 1; border: 2px dashed #767064; border-radius: 26px; background: rgba(255,250,241,.55); box-shadow: 0 10px 35px rgba(57,51,40,.08); pointer-events: none; transition: .45s cubic-bezier(.2,.8,.2,1); }
+    .group-heading { position: absolute; left: 22px; top: -18px; display: flex; align-items: center; gap: 8px; padding: 8px 13px; border: 1px solid #c9c2b5; border-radius: 11px; background: #292925; color: white; box-shadow: 0 5px 14px #39332825; pointer-events: auto; }
+    .group-heading span { color: #f4dc73; }
+    .group-heading input { width: 150px; border: 0; outline: 0; background: transparent; color: white; font: 700 12px Manrope; }
+    .group-count { font: 500 8px DM Mono; color: #bbb5aa; white-space: nowrap; }
+    .group-composer { position: fixed; z-index: 45; left: 50%; bottom: 96px; transform: translate(-46%, 150px); display: flex; align-items: center; gap: 8px; width: min(450px, 60vw); padding: 8px; border: 1px solid #c9c2b5; border-radius: 16px; background: #292925; box-shadow: 0 14px 38px #39332835; opacity: 0; pointer-events: none; transition: .3s cubic-bezier(.2,.8,.2,1); }
+    .group-composer.show { transform: translate(-46%, 0); opacity: 1; pointer-events: auto; }
+    .group-composer input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 10px; background: transparent; color: white; font: 600 13px Manrope; }
+    .group-composer input::placeholder { color: #aaa399; }
+    .group-composer button { border: 0; border-radius: 10px; padding: 11px 14px; background: #f35f45; color: white; font: 800 11px Manrope; cursor: pointer; }
+    .group-selection-count { color: #f4dc73; font: 500 9px DM Mono; padding-left: 8px; white-space: nowrap; }
+    .note-search { position: relative; }
+    .search-field { display: flex; align-items: center; gap: 7px; width: 190px; height: 36px; padding: 0 11px; border: 1px solid #d6d0c3; border-radius: 12px; background: #fffaf1; transition: .2s; }
+    .search-field:focus-within { width: 235px; border-color: #8f887a; box-shadow: 0 5px 18px #39332816; }
+    .search-field span { color: #7f796e; font-size: 15px; }
+    .search-field input { width: 100%; border: 0; outline: 0; background: transparent; font: 600 11px Manrope; color: #292925; }
+    .search-field input::placeholder { color: #aaa399; }
+    .search-results { position: absolute; top: 43px; right: 0; z-index: 80; display: none; width: 315px; max-height: 330px; overflow-y: auto; padding: 7px; border: 1px solid #d5cec1; border-radius: 15px; background: #fffaf1; box-shadow: 0 16px 42px #3933282d; }
+    .search-results.show { display: block; animation: pop .2s; }
+    .search-result { display: block; width: 100%; padding: 11px 12px; border: 0; border-bottom: 1px solid #e6dfd3; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; }
+    .search-result:last-child { border-bottom: 0; }
+    .search-result:hover, .search-result:focus { outline: 0; background: #eee9df; }
+    .search-result strong { display: block; overflow: hidden; color: #292925; font: 700 12px Manrope; text-overflow: ellipsis; white-space: nowrap; }
+    .search-result small { display: block; margin-top: 4px; color: #8d867b; font: 500 8px DM Mono; text-transform: uppercase; }
+    .search-empty { padding: 20px 14px; color: #8d867b; font: 500 10px DM Mono; text-align: center; }
+    .note.search-focus { z-index: 18; animation: searchPulse 1.4s ease; }
+    .note-name { display: block; width: calc(100% - 20px); margin: 9px 0 3px; padding: 0; overflow: hidden; border: 0; border-bottom: 1px dashed transparent; outline: 0; background: transparent; color: #292823; font: 800 15px/1.3 Manrope; text-overflow: ellipsis; white-space: nowrap; }
+    .note-name::placeholder { color: #5e5a5190; }
+    .note-name:focus { border-bottom-color: #57544d70; }
+    .note:has(.note-name) textarea { height: calc(100% - 76px); margin-top: 5px; font-size: 13px; }
+    @keyframes searchPulse { 0%,100% { box-shadow: 3px 5px 0 #27241d0e,0 10px 24px #39332312; } 35% { box-shadow: 0 0 0 8px #f35f4545,0 18px 38px #3933232d; transform: rotate(var(--r)) scale(1.06); } }
+    @media(max-width:900px) { .search-field { width: 42px; } .search-field:focus-within { width: 190px; } .search-field input::placeholder { color: transparent; } .search-field:focus-within input::placeholder { color: #aaa399; } }
+  </style>
+</head>
+<body>
+  <div class="grain"></div>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Jot home"><span class="brand-mark">J</span><span>jot.</span></a>
+    <div class="board-title"><span class="status-dot"></span><input id="boardTitle" value="My wandering thoughts" aria-label="Board title"><span class="pencil">✎</span></div>
+    <div class="header-actions">
+      <div class="note-search">
+        <label class="search-field"><span>⌕</span><input id="noteSearch" type="search" placeholder="Find an old idea..." aria-label="Search notes" autocomplete="off"></label>
+        <div class="search-results" id="searchResults" role="listbox" aria-label="Matching notes"></div>
+      </div>
+      <button class="icon-btn sound-btn" id="soundBtn" aria-label="Toggle sound">♪</button>
+      <div class="streak"><span>✦</span><strong id="ideaCount">6</strong> ideas</div>
+      <button class="avatar" aria-label="Profile">LO</button>
+    </div>
+  </header>
+
+  <main>
+    <aside class="toolbox">
+      <div class="tool-group">
+        <button class="tool active" data-tool="select"><span class="tool-icon">↖</span><small>Move</small></button>
+        <button class="tool" data-tool="note"><span class="tool-icon note-icon">▤</span><small>Note</small></button>
+        <button class="tool" data-tool="draw"><span class="tool-icon">〰</span><small>Doodle</small></button>
+        <button class="tool" data-tool="group" title="Select two or more notes to group them"><span class="tool-icon">◌</span><small>Group</small></button>
+        <button class="tool" data-tool="spark"><span class="tool-icon">✦</span><small>Spark</small></button>
+      </div>
+      <div class="tool-divider"></div>
+      <button class="tool organize-tool" id="organizeBtn"><span class="tool-icon">⌘</span><small>Tidy up</small></button>
+    </aside>
+
+    <section class="board" id="board" aria-label="Idea board">
+      <div class="board-grid"></div>
+      <div class="ambient-shape shape-one">✦</div>
+      <div class="ambient-shape shape-two">↝</div>
+      <div class="date-stamp">MONDAY · AUG 17<br><strong>IDEA GARDEN</strong></div>
+
+      <article class="note yellow" data-id="1" style="--x:8%;--y:14%;--r:-3deg">
+        <div class="tape"></div><button class="note-menu" aria-label="Note options">•••</button>
+        <span class="note-tag">BIG IDEA</span><input class="note-name" value="Ideas as places" aria-label="Note name" placeholder="Name this note..."><textarea>What if ideas felt less like files and more like tiny places you could visit?</textarea>
+        <div class="note-footer"><span>✦</span><time>9:42 am</time></div>
+      </article>
+
+      <article class="note blue" data-id="2" style="--x:39%;--y:10%;--r:2deg">
+        <button class="note-menu" aria-label="Note options">•••</button><span class="note-tag">TO EXPLORE</span><input class="note-name" value="Mood sounds" aria-label="Note name" placeholder="Name this note...">
+        <textarea>Sounds for different moods
+• rain on a window
+• old keyboard clicks
+• a tiny campfire</textarea>
+        <div class="scribble">◡◡◡</div><div class="note-footer"><span>☁</span><time>10:03 am</time></div>
+      </article>
+
+      <article class="note pink small" data-id="3" style="--x:74%;--y:18%;--r:5deg">
+        <button class="note-menu" aria-label="Note options">•••</button><span class="note-tag">REMEMBER</span>
+        <input class="note-name" value="A useful reminder" aria-label="Note name" placeholder="Name this note..."><textarea>Messy is a feature, not a bug.</textarea>
+        <div class="star-doodle">☆</div><div class="note-footer"><span>♥</span><time>10:18 am</time></div>
+      </article>
+
+      <article class="note cream wide" data-id="4" style="--x:18%;--y:56%;--r:1deg">
+        <button class="note-menu" aria-label="Note options">•••</button><span class="note-tag">STORY SEED</span>
+        <input class="note-name" value="The living library" aria-label="Note name" placeholder="Name this note..."><textarea>A library where the books rewrite themselves based on who's reading them...</textarea>
+        <div class="underline"></div><div class="note-footer"><span>↗</span><time>11:26 am</time></div>
+      </article>
+
+      <article class="note green small" data-id="5" style="--x:59%;--y:53%;--r:-4deg">
+        <div class="pin"></div><button class="note-menu" aria-label="Note options">•••</button><span class="note-tag">QUESTION</span>
+        <input class="note-name" value="Forgotten ideas" aria-label="Note name" placeholder="Name this note..."><textarea>Where do forgotten ideas go?</textarea>
+        <div class="note-footer"><span>?</span><time>12:01 pm</time></div>
+      </article>
+
+      <article class="note orange micro" data-id="6" style="--x:82%;--y:61%;--r:3deg">
+        <button class="note-menu" aria-label="Note options">•••</button><span class="note-tag">TRY THIS</span>
+        <input class="note-name" value="Draw before explaining" aria-label="Note name" placeholder="Name this note..."><textarea>Draw first. Explain later.</textarea>
+        <div class="note-footer"><span>✎</span><time>12:14 pm</time></div>
+      </article>
+
+      <canvas id="doodleCanvas"></canvas>
+    </section>
+
+    <div class="prompt-dock" id="promptDock">
+      <button class="color-dot" id="colorPicker" aria-label="Change note color"></button>
+      <input id="quickInput" placeholder="Toss an idea in here..." autocomplete="off">
+      <span class="shortcut">ENTER</span>
+      <button class="send-btn" id="sendBtn" aria-label="Add idea">↗</button>
+    </div>
+
+    <div class="group-composer" id="groupComposer">
+      <span class="group-selection-count" id="groupSelectionCount">Choose 2+ notes</span>
+      <input id="groupNameInput" placeholder="Name this group..." maxlength="30">
+      <button id="createGroupBtn">Make group</button>
+    </div>
+
+    <div class="toast" id="toast"><span>✦</span><span id="toastText">Board tidied — still wonderfully yours.</span></div>
+    <div class="spark-menu" id="sparkMenu">
+      <p>Need a little spark?</p>
+      <button>What have you been curious about lately?</button>
+      <button>Invent a place that shouldn't exist.</button>
+      <button>What could be simpler?</button>
+    </div>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
